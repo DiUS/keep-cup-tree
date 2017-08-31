@@ -1,12 +1,12 @@
 (function () {
 
-  var seed = 256;
+  var seed = 1;
   function random() {
     var x = Math.sin(seed++) * 10000;
     return x - Math.floor(x);
   }
 
-  var power = 7;
+  var power = 9;
   var maxCups = Math.pow(2, power - 1);
   var cupsSaved = maxCups;
   var areAllCupsSaved = cupsSaved >= maxCups;
@@ -19,7 +19,7 @@
 
   var w = c.width = window.innerWidth;
   var h = c.height = window.innerHeight;
-  var ctx = c.getContext( '2d' );
+  var ctx = c.getContext('2d');
 
   var opts = {
     speed: 1,
