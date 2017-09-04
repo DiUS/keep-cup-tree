@@ -1,25 +1,75 @@
 (function () {
-  function start(config) {
-    console.log(config)
+  function isShallowEql(a, b) {
+    if (a === b) return true;
+    if (!a || !b) return false;
 
-    var seed = config.seed || 1;
-    var cupsSaved = config.cupsSaved || 0;
-    var power = config.power || 6;
-    var leafHue = config.leafHue || 80;
-    var trunkSL = config.trunkSL || '80%,50%';
+    var aKeys = Object.keys(a).sort();
+    if (aKeys.join(',') !== Object.keys(b).sort().join(',')) return false;
 
-    var maxCups = Math.pow(2, power - 1);
-    var areAllCupsSaved = cupsSaved >= maxCups;
+    for (var i = 0; i < aKeys.length; i++) {
+      if (a[aKeys[i]] !== b[aKeys[i]]) return false;
+    }
+    return true;
+  }
+
+  function configReducer(_state, _action) {
+    var state = _state || {
+      seed: 1,
+      power: 6,
+      leafHue: 80,
+      trunkSL: '80%,50%'
+    };
+
+    var action = _action || {};
+    switch (action.type) {
+      case '@@keep-cup-tree/config/SET_CONFIG':
+        return Object.assign({}, state, action.config);
+      default:
+        return state;
+    }
+  }
+
+  function treeReducer(_state, _action) {
+    var state = _state || {
+      status: 'ready',
+      leafCount: 0
+    };
+    var action = _action || {};
+    switch (action.type) {
+      case '@@keep-cup-tree/tree/SET_STATUS':
+        return Object.assign({}, state, { status: action.status });
+      case '@@keep-cup-tree/tree/SET_LEAF_COUNT':
+        return Object.assign({}, state, { leafCount: action.leafCount });
+      default:
+        return state;
+    }
+  }
+
+  function setLeafCount(leafCount) {
+    return {
+      type: '@@keep-cup-tree/tree/SET_LEAF_COUNT',
+      leafCount: leafCount
+    };
+  }
+
+  var store = Redux.createStore(Redux.combineReducers({
+    config: configReducer,
+    tree: treeReducer
+  }));
+
+  function start() {
+    var config = store.getState().config;
+
+    var seed = config.seed;
+    var maxCups = Math.pow(2, config.power - 1);
+
+    function areAllCupsSaved() {
+      return store.getState().tree.leafCount >= maxCups;
+    }
 
     function random() {
       var x = Math.sin(seed++) * 10000;
       return x - Math.floor(x);
-    }
-
-    function getLeafColor(i) {
-      return i < cupsSaved
-        ? 'hsla($hue,80%,50%,.5)'.replace('$hue', leafHue + 20 * random())
-        : 'hsla(0,100%,100%,0.01)';
     }
 
     var w = c.width = window.innerWidth;
@@ -29,7 +79,7 @@
     var opts = {
       speed: 1,
       splitSizeProbabilityMultiplier: 1/1000,
-      maxIterations: power,
+      maxIterations: config.power,
       startSize: 20,
       baseSizeMultiplier: .7,
       addedSizeMultiplier: .2,
@@ -67,7 +117,7 @@
         b: parent.angle.b + this.iteration * opts.angleVariationIterationMultiplier * ( opts.baseAngleVariation + opts.addedAngleVariation * random() ),
       };
       this.size = ( opts.baseSizeMultiplier + opts.addedSizeMultiplier * random() ) * parent.size;
-      this.color = ('hsla(hue,' + trunkSL + ',alp)')
+      this.color = ('hsla(hue,' + config.trunkSL + ',alp)')
         .replace( 'hue',  ( 1 - this.iteration / opts.maxIterations ) * 40 )
         .replace( 'alp', 1 - ( this.iteration / opts.maxIterations ) * .9 );
 
@@ -138,11 +188,12 @@
 
     var leafNumber = 0;
     function Leaf(parent) {
+      this.leafNumber = leafNumber++;
       this.point = this.closest = parent.end;
       this.size = opts.baseLeafSize + opts.addedLeafSize * random();
       this.time = -Math.PI / 2;
       this.speed = .03 + .03 * random();
-      this.color = getLeafColor(leafNumber++);
+      this.color = 'hsla($hue,80%,50%,.5)'.replace('$hue', config.leafHue + 20 * random());
       this.sparkleOffset = Math.random() * 100;
     }
 
@@ -151,10 +202,12 @@
     };
 
     Leaf.prototype.render = function () {
-      if (areAllCupsSaved && healthBar.health === 1) {
+      if (areAllCupsSaved() && healthBar.health === 1) {
         ctx.fillStyle = 'hsla(' + ((this.sparkleOffset + this.time * 100) % 360) + ',80%,50%,.5';
-      } else {
+      } else if (this.leafNumber < store.getState().tree.leafCount) {
         ctx.fillStyle = this.color;
+      } else {
+        ctx.fillStyle = 'hsla(0,100%,100%,0.01)';
       }
 
       var size = (Math.sin(this.time) / 4 + .75) * this.size * this.point.screen.scale;
@@ -212,7 +265,7 @@
 
     HealthBar.prototype.update = function () {
       this.time += .1 * opts.speed;
-      var healthTarget = Math.min(leafNumber / maxCups, Math.min(cupsSaved, maxCups) / maxCups);
+      var healthTarget = Math.min(leafNumber / maxCups, Math.min(store.getState().tree.leafCount, maxCups) / maxCups);
       if (healthTarget <= .1) {
         this.health = .1 + (Math.sin(3 * this.time / Math.PI) / 2 + .5) / 30;
       } else if (healthTarget - this.health > .001) {
@@ -269,9 +322,9 @@
       var pad = 5;
       pulseScale = (Math.cos((2 * this.time - 1) / Math.PI) / this.pulse + (this.pulse - 1) / this.pulse);
       ctx.strokeStyle = 'rgba(0, 0, 0, 0)';
-      ctx.fillStyle = areAllCupsSaved && this.health === 1
+      ctx.fillStyle = areAllCupsSaved() && this.health === 1
         ? 'hsla(' + (this.time * 100 % 360) + ',80%,50%,.5)'
-        : 'hsla(' + (leafHue + 20 * Math.random()) + ',80%,50%,.75)';
+        : 'hsla(' + (config.leafHue + 20 * Math.random()) + ',80%,50%,.75)';
       ctx.lineWidth = 0;
       this.drawRoundedRect('fill',
         (w - this.baseWidth * pulseScale) / 2 + pad,
@@ -332,24 +385,56 @@
     throw new Error('No fetch support');
   }
 
+  store.dispatch({
+    type: '@@keep-cup-tree/tree/SET_STATUS',
+    status: 'loading'
+  });
+
+  function startPolling() {
+    setInterval(function () {
+      fetch('https://74bm6fm1bf.execute-api.ap-southeast-2.amazonaws.com/prod/keepCupTreeLeafCount')
+        .then(function (resp) {
+          return resp.json();
+        })
+        .then(function (json) {
+          if (json.result.cupsSaved !== store.getState().tree.leafCount) {
+            store.dispatch(setLeafCount(json.result.cupsSaved));
+          }
+        });
+    }, 1000 * 60);
+  }
+
   fetch('https://74bm6fm1bf.execute-api.ap-southeast-2.amazonaws.com/prod/keepCupTreeLeafCount')
     .then(function (resp) {
       return resp.json();
     })
     .then(function (json) {
       if (json.ok) {
-        start(Object.assign({}, json.result, {
-          // leafHue: 20,
-          // trunkSL: '80%,20%',
-          // cupsSaved: 32,
-          // power: 6
-        }));
+        store.dispatch({
+          type: '@@keep-cup-tree/tree/SET_STATUS',
+          status: 'success'
+        });
+
+        store.dispatch({
+          type: '@@keep-cup-tree/config/SET_CONFIG',
+          config: json.result
+        });
+
+        store.dispatch(setLeafCount(json.result.cupsSaved));
+
+        startPolling();
+
+        start();
       } else {
         return Promise.reject(json);
       }
     })
     .catch(function (e) {
-      alert('There was an error loading the count!');
+      store.dispatch({
+        type: '@@keep-cup-tree/tree/SET_STATUS',
+        status: 'error'
+      });
+
       console.error(e);
     });
 }());
