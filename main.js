@@ -1,9 +1,12 @@
 (function () {
   function start(config) {
+    console.log(config)
+
     var seed = config.seed || 1;
     var cupsSaved = config.cupsSaved || 0;
     var power = config.power || 6;
     var leafHue = config.leafHue || 80;
+    var trunkSL = config.trunkSL || '80%,50%';
 
     var maxCups = Math.pow(2, power - 1);
     var areAllCupsSaved = cupsSaved >= maxCups;
@@ -64,7 +67,7 @@
         b: parent.angle.b + this.iteration * opts.angleVariationIterationMultiplier * ( opts.baseAngleVariation + opts.addedAngleVariation * random() ),
       };
       this.size = ( opts.baseSizeMultiplier + opts.addedSizeMultiplier * random() ) * parent.size;
-      this.color = 'hsla(hue,80%,50%,alp)'
+      this.color = ('hsla(hue,' + trunkSL + ',alp)')
         .replace( 'hue',  ( 1 - this.iteration / opts.maxIterations ) * 40 )
         .replace( 'alp', 1 - ( this.iteration / opts.maxIterations ) * .9 );
 
@@ -281,8 +284,7 @@
     function anim() {
       window.requestAnimationFrame(anim);
 
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, w, h);
+      ctx.clearRect(0, 0, w, h);
 
       rotY += opts.rotYVel;
       rotYcos = Math.cos(rotY);
@@ -336,7 +338,12 @@
     })
     .then(function (json) {
       if (json.ok) {
-        start(json.result);
+        start(Object.assign({}, json.result, {
+          // leafHue: 20,
+          // trunkSL: '80%,20%',
+          // cupsSaved: 32,
+          // power: 6
+        }));
       } else {
         return Promise.reject(json);
       }
