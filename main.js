@@ -12,64 +12,98 @@
     return true;
   }
 
-  function configReducer(_state, _action) {
-    var state = _state || {
-      seed: 1,
-      power: 6,
-      leafHue: 80,
-      trunkSL: '80%,50%'
-    };
+  function pick(obj) {
+    var result = {};
+    if (!obj) return {};
+    [].slice.call(arguments, 1).forEach(function (key) {
+      result[key] = obj[key];
+    });
+    return result;
+  }
 
-    var action = _action || {};
-    switch (action.type) {
-      case '@@keep-cup-tree/config/SET_CONFIG':
-        return Object.assign({}, state, action.config);
-      default:
-        return state;
-    }
+  function buildRandom(_seed) {
+    var seed = _seed;
+    return function () {
+      var x = Math.sin(seed++) * 10000;
+      return x - Math.floor(x);
+    };
   }
 
   function treeReducer(_state, _action) {
     var state = _state || {
-      status: 'ready',
+      seed: 1,
+      power: 6,
+      leafHue: 80,
+      trunkSL: '80%,50%',
       leafCount: 0
     };
+
     var action = _action || {};
     switch (action.type) {
-      case '@@keep-cup-tree/tree/SET_STATUS':
-        return Object.assign({}, state, { status: action.status });
-      case '@@keep-cup-tree/tree/SET_LEAF_COUNT':
-        return Object.assign({}, state, { leafCount: action.leafCount });
+      case '@@keep-cup-tree/tree/SET_DATA':
+        var newLeafCount = action.data.leafCount || action.data.cupsSaved || state.leafCount;
+        var leafCountDelta = 0;
+        if (state.leafCount > 0 && state.leafCount < newLeafCount) {
+          leafCountDelta = newLeafCount - state.leafCount;
+        }
+        return {
+          seed: action.data.seed || state.seed,
+          power: action.data.power || state.power,
+          leafHue: action.data.leafHue || state.leafHue,
+          trunkSL: action.data.trunkSL || state.trunkSL,
+          leafCount: newLeafCount,
+          leafCountDelta: leafCountDelta
+        };
       default:
         return state;
     }
   }
 
-  function setLeafCount(leafCount) {
-    return {
-      type: '@@keep-cup-tree/tree/SET_LEAF_COUNT',
-      leafCount: leafCount
-    };
+  function statusReducer(_state, _action) {
+    var state = _state || 'ready';
+    var action = _action || {};
+    switch (action.type) {
+      case '@@keep-cup-tree/status/SET_STATUS':
+        return action.status;
+      default:
+        return state;
+    }
+  }
+
+  var dispatcher = {
+    updateTree: function (data) {
+      return {
+        type: '@@keep-cup-tree/tree/SET_DATA',
+        data: data
+      };
+    },
+    setStatus: function (status) {
+      return {
+        type: '@@keep-cup-tree/status/SET_STATUS',
+        status: status
+      };
+    }
+  };
+
+  for (var d in dispatcher) {
+    if (dispatcher.hasOwnProperty(d)) {
+      dispatcher[d] = (function () {
+        store.dispatch(this.apply(null, arguments));
+      }).bind(dispatcher[d]);
+    }
   }
 
   var store = Redux.createStore(Redux.combineReducers({
-    config: configReducer,
-    tree: treeReducer
+    tree: treeReducer,
+    status: statusReducer
   }));
 
   function start() {
-    var config = store.getState().config;
-
-    var seed = config.seed;
+    var config = store.getState().tree;
     var maxCups = Math.pow(2, config.power - 1);
 
     function areAllCupsSaved() {
       return store.getState().tree.leafCount >= maxCups;
-    }
-
-    function random() {
-      var x = Math.sin(seed++) * 10000;
-      return x - Math.floor(x);
     }
 
     var w = c.width = window.innerWidth;
@@ -109,14 +143,15 @@
     var lines = [];
     var healthBar = new HealthBar();
 
+    var lineRandom = buildRandom(config.seed);
     function Line(parent) {
       this.iteration = parent.iteration + 1;
       this.start = parent.end;
       this.angle = {
-        a: parent.angle.a + this.iteration * opts.angleVariationIterationMultiplier * ( opts.baseAngleVariation + opts.addedAngleVariation * random() ),
-        b: parent.angle.b + this.iteration * opts.angleVariationIterationMultiplier * ( opts.baseAngleVariation + opts.addedAngleVariation * random() ),
+        a: parent.angle.a + this.iteration * opts.angleVariationIterationMultiplier * ( opts.baseAngleVariation + opts.addedAngleVariation * lineRandom() ),
+        b: parent.angle.b + this.iteration * opts.angleVariationIterationMultiplier * ( opts.baseAngleVariation + opts.addedAngleVariation * lineRandom() ),
       };
-      this.size = ( opts.baseSizeMultiplier + opts.addedSizeMultiplier * random() ) * parent.size;
+      this.size = ( opts.baseSizeMultiplier + opts.addedSizeMultiplier * lineRandom() ) * parent.size;
       this.color = ('hsla(hue,' + config.trunkSL + ',alp)')
         .replace( 'hue',  ( 1 - this.iteration / opts.maxIterations ) * 40 )
         .replace( 'alp', 1 - ( this.iteration / opts.maxIterations ) * .9 );
@@ -149,7 +184,7 @@
         this.end.z += this.speed.z;
         this.time += .1 * opts.speed;
 
-        if (random() < this.size * opts.splitSizeProbabilityMultiplier || this.time > this.size) {
+        if (lineRandom() < this.size * opts.splitSizeProbabilityMultiplier || this.time > this.size) {
           if (this.iteration < opts.maxIterations) {
             lines.push(new Line(this));
             lines.push(new Line(this));
@@ -187,13 +222,14 @@
     };
 
     var leafNumber = 0;
+    var leafRandom = buildRandom(config.seed);
     function Leaf(parent) {
       this.leafNumber = leafNumber++;
       this.point = this.closest = parent.end;
-      this.size = opts.baseLeafSize + opts.addedLeafSize * random();
+      this.size = opts.baseLeafSize + opts.addedLeafSize * leafRandom();
       this.time = -Math.PI / 2;
-      this.speed = .03 + .03 * random();
-      this.color = 'hsla($hue,80%,50%,.5)'.replace('$hue', config.leafHue + 20 * random());
+      this.speed = .03 + .03 * leafRandom();
+      this.hueOffset = 20 * leafRandom();
       this.sparkleOffset = Math.random() * 100;
     }
 
@@ -202,20 +238,42 @@
     };
 
     Leaf.prototype.render = function () {
+      var fillStyle = this.getColor();
+      if (fillStyle) {
+        ctx.fillStyle = fillStyle;
+        var size = (Math.sin(this.time) / 4 + .75) * this.size * this.point.screen.scale;
+        ctx.fillRect(
+          this.point.screen.x - size / 2,
+          this.point.screen.y - size / 2,
+          size, size
+        );
+      }
+    };
+
+    Leaf.prototype.getColor = function () {
+      var current = store.getState().tree;
+      var mode;
       if (areAllCupsSaved() && healthBar.health === 1) {
-        ctx.fillStyle = 'hsla(' + ((this.sparkleOffset + this.time * 100) % 360) + ',80%,50%,.5';
-      } else if (this.leafNumber < store.getState().tree.leafCount) {
-        ctx.fillStyle = this.color;
+        mode = 'sparkle';
+      } else if (this.leafNumber < current.leafCount) {
+        if (current.leafCountDelta && this.leafNumber >= current.leafCount - current.leafCountDelta) {
+          mode = 'sparkle';
+        } else {
+          mode = 'normal';
+        }
       } else {
-        ctx.fillStyle = 'hsla(0,100%,100%,0.01)';
+        mode = 'transparent';
       }
 
-      var size = (Math.sin(this.time) / 4 + .75) * this.size * this.point.screen.scale;
-      ctx.fillRect(
-        this.point.screen.x - size / 2,
-        this.point.screen.y - size / 2,
-        size, size
-      );
+      switch (mode) {
+        case 'sparkle':
+          return 'hsla(' + ((this.sparkleOffset + this.time * 100) % 360) + ',80%,50%,.5)';
+        case 'transparent':
+          return 'hsla(0,100%,100%,0.01)';
+        case 'normal':
+        default:
+          return 'hsla(' + (current.leafHue + this.hueOffset) + ',80%,50%,.5)';
+      }
     };
 
     function Point(x, y, z) {
@@ -306,6 +364,7 @@
     };
 
     HealthBar.prototype.render = function () {
+      var current = store.getState().tree;
       var pulseScale;
 
       pulseScale = (Math.cos(2 * this.time / Math.PI) / this.pulse + (this.pulse - 1) / this.pulse);
@@ -324,7 +383,7 @@
       ctx.strokeStyle = 'rgba(0, 0, 0, 0)';
       ctx.fillStyle = areAllCupsSaved() && this.health === 1
         ? 'hsla(' + (this.time * 100 % 360) + ',80%,50%,.5)'
-        : 'hsla(' + (config.leafHue + 20 * Math.random()) + ',80%,50%,.75)';
+        : 'hsla(' + (current.leafHue + 20 * Math.random()) + ',80%,50%,.75)';
       ctx.lineWidth = 0;
       this.drawRoundedRect('fill',
         (w - this.baseWidth * pulseScale) / 2 + pad,
@@ -390,37 +449,41 @@
     status: 'loading'
   });
 
+  const LEAF_ENDPOINT = 'https://74bm6fm1bf.execute-api.ap-southeast-2.amazonaws.com/prod/keepCupTreeLeafCount';
+
   function startPolling() {
+    function isRefresh(newData) {
+      var pickCurrent = pick(store.getState().tree, 'seed', 'power');
+      var pickNew = pick(newData, 'seed', 'power');
+      return Object.keys(pickNew).length > 0
+        && !isShallowEql(pickCurrent, pickNew);
+    }
+
     setInterval(function () {
-      fetch('https://74bm6fm1bf.execute-api.ap-southeast-2.amazonaws.com/prod/keepCupTreeLeafCount')
+      fetch(LEAF_ENDPOINT)
         .then(function (resp) {
           return resp.json();
         })
         .then(function (json) {
-          if (json.result.cupsSaved !== store.getState().tree.leafCount) {
-            store.dispatch(setLeafCount(json.result.cupsSaved));
+          if (json.ok) {
+            if (isRefresh(json.result)) {
+              window.location.reload();
+            }
+
+            dispatcher.updateTree(json.result);
           }
         });
-    }, 1000 * 60);
+    }, 10000);
   }
 
-  fetch('https://74bm6fm1bf.execute-api.ap-southeast-2.amazonaws.com/prod/keepCupTreeLeafCount')
+  fetch(LEAF_ENDPOINT)
     .then(function (resp) {
       return resp.json();
     })
     .then(function (json) {
       if (json.ok) {
-        store.dispatch({
-          type: '@@keep-cup-tree/tree/SET_STATUS',
-          status: 'success'
-        });
-
-        store.dispatch({
-          type: '@@keep-cup-tree/config/SET_CONFIG',
-          config: json.result
-        });
-
-        store.dispatch(setLeafCount(json.result.cupsSaved));
+        dispatcher.setStatus('success');
+        dispatcher.updateTree(json.result);
 
         startPolling();
 
@@ -430,11 +493,7 @@
       }
     })
     .catch(function (e) {
-      store.dispatch({
-        type: '@@keep-cup-tree/tree/SET_STATUS',
-        status: 'error'
-      });
-
+      dispatcher.setStatus('error');
       console.error(e);
     });
 }());
