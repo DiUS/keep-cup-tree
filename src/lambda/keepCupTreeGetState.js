@@ -1,22 +1,28 @@
 const querystring = require('querystring');
 const AWS = require('aws-sdk');
-
 const dynamodb = new AWS.DynamoDB({ apiVersion: '2012-08-10' });
 
-function jsonResponse(options) {
-  return {
-    isBase64Encoded: options.isBase64Encoded || false,
-    statusCode: options.statusCode || 200,
-    headers: Object.assign({
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    }, options.headers),
-    body: JSON.stringify(options.body || {})
-  };
-}
+const getEnvVars = () => ({
+  seed: parseInt(process.env.SEED, 10) || 1,
+  leafHue: parseInt(process.env.LEAF_HUE || 80, 10),
+  leafCountOffset: parseInt(process.env.LEAF_COUNT_OFFSET, 10) || 0,
+  power: parseInt(process.env.POWER || 6, 10),
+  trunkSL: process.env.TRUNK_SL || '80%,50%',
+});
+
+const jsonResponse = options => ({
+  isBase64Encoded: options.isBase64Encoded || false,
+  statusCode: options.statusCode || 200,
+  headers: Object.assign({
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+  }, options.headers),
+  body: JSON.stringify(options.body || {}),
+});
 
 exports.handler = (event, context, callback) => {
   const scanParams = { TableName: 'KeepCupTree' };
+  const envVars = getEnvVars();
 
   let finalCount = 0;
   function scan(err, data) {
@@ -43,11 +49,11 @@ exports.handler = (event, context, callback) => {
       body: {
         ok: true,
         result: {
-          seed: parseInt(process.env.SEED, 10),
-          cupsSaved: finalCount - 128, // 1st tree done
-          leafHue: parseInt(process.env.LEAF_HUE || 80, 10),
-          power: parseInt(process.env.POWER || 6, 10),
-          trunkSL: process.env.TRUNK_SL || '80%,50%'
+          seed: envVars.seed,
+          cupsSaved: finalCount - envVars.leafCountOffset,
+          leafHue: envVars.leafHue,
+          power: envVars.power,
+          trunkSL: envVars.trunkSL,
         }
       }
     }));
