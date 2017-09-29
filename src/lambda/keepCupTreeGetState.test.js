@@ -23,6 +23,7 @@ describe('keepCupTreeGetState', () => {
     process.env.LEAF_COUNT_OFFSET = '0';
     process.env.POWER = '7';
     process.env.TRUNK_SL = '80%,20%';
+    process.env.DYNAMO_TABLE_NAME = 'KeepCupTree';
   });
 
   afterEach(() => {
@@ -100,6 +101,7 @@ describe('keepCupTreeGetState', () => {
     delete process.env.LEAF_COUNT_OFFSET;
     delete process.env.POWER;
     delete process.env.TRUNK_SL;
+    delete process.env.DYNAMO_TABLE_NAME;
 
     DynamoDBMock.scan
       .withArgs({ TableName: 'KeepCupTree' })

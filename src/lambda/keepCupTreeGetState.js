@@ -8,6 +8,7 @@ const getEnvVars = () => ({
   leafCountOffset: parseInt(process.env.LEAF_COUNT_OFFSET, 10) || 0,
   power: parseInt(process.env.POWER || 6, 10),
   trunkSL: process.env.TRUNK_SL || '80%,50%',
+  dynamoTableName: process.env.DYNAMO_TABLE_NAME || 'KeepCupTree',
 });
 
 const jsonResponse = options => ({
@@ -21,8 +22,8 @@ const jsonResponse = options => ({
 });
 
 exports.handler = (event, context, callback) => {
-  const scanParams = { TableName: 'KeepCupTree' };
   const envVars = getEnvVars();
+  const scanParams = { TableName: envVars.dynamoTableName };
 
   let finalCount = 0;
   function scan(err, data) {
