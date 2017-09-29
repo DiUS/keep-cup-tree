@@ -8,9 +8,11 @@ const individualMessages = [
   'Check out our progress at http://keepcuptree.test.dius.com.au'
 ];
 
+let envVars = { initialised: false };
+
 function isAuthorized(request) {
-  return request.token === process.env.SLACK_TOKEN
-    || request.token === process.env.TONY_TOKEN;
+  return request.token === envVars.slackToken
+    || request.token === envVars.tonyToken;
 }
 
 function jsonResponse(options) {
@@ -24,7 +26,7 @@ function jsonResponse(options) {
   };
 }
 
-exports.handler = (event, context, callback) => {
+function processEvent(event, context, callback) {
   const request = querystring.parse(event.body);
   console.log('Parsed slack request:', request);
 
@@ -97,7 +99,7 @@ exports.handler = (event, context, callback) => {
     }
   };
 
-  if (request.token === process.env.TONY_TOKEN) {
+  if (request.token === envVars.tonyToken) {
     callback(null, jsonResponse({
       body: {
         ok: true,
@@ -144,5 +146,47 @@ exports.handler = (event, context, callback) => {
       }));
     }
   });
+}
 
+const kms = new AWS.KMS();
+function decrypt(encrypted) {
+  return new Promise((res, rej) => {
+    kms.decrypt({ CiphertextBlob: new Buffer(encrypted, 'base64') }, (err, data) => {
+      if (err) {
+        console.error('Decrypt error:', err);
+        rej(err);
+      } else {
+        res(data.Plaintext.toString('ascii'));
+      }
+    });
+  });
+}
+
+exports.handler = (event, context, callback) => {
+  if (!envVars.initialised) {
+    console.info('Decrypting secrets');
+    Promise.all([
+      decrypt(process.env.SLACK_TOKEN),
+      decrypt(process.env.TONY_TOKEN),
+    ])
+      .then((values) => {
+        envVars = {
+          initialised: true,
+          slackToken: values[0],
+          tonyToken: values[1],
+        };
+        processEvent(event, context, callback);
+      })
+      .catch(() => {
+        callback(null, jsonResponse({
+          statusCode: 500,
+          body: {
+            ok: false,
+            result: 'Could not decrypt secrets',
+          }
+        }));
+      });
+  } else {
+    processEvent(event, context, callback);
+  }
 };
