@@ -449,7 +449,7 @@
     status: 'loading'
   });
 
-  const LEAF_ENDPOINT = 'https://74bm6fm1bf.execute-api.ap-southeast-2.amazonaws.com/prod/keepCupTreeLeafCount';
+  const LEAF_ENDPOINT = 'https://r1ejv5dcpc.execute-api.ap-southeast-2.amazonaws.com/prod/getstate';
 
   function startPolling() {
     function isRefresh(newData) {
