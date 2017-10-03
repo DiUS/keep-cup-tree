@@ -5,7 +5,7 @@ const dynamodb = new AWS.DynamoDB({apiVersion: '2012-08-10'});
 const individualMessages = [
   '@mention your friends next time!',
   'Don\'t forget to post a picture!',
-  'Check out our progress at http://keepcuptree.test.dius.com.au'
+  'Check out our progress at http://keepcuptree.dius.com.au'
 ];
 
 let envVars = { initialised: false };
