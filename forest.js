@@ -5,7 +5,7 @@
   var canvasHeight = canvas.height;
   var canvasContext = canvas.getContext('2d');
 
-  var radius = 10;
+  var radius = 50;
   var radiusSquared = radius * radius;
 
   var cellSize = radius * Math.SQRT1_2;
@@ -13,53 +13,27 @@
   var gridHeight = Math.ceil(canvasHeight / cellSize);
   var gridCells = new Array(gridWidth * gridHeight);
 
+  var randomSeed = 1;
   var rejectThreshold = 30;
   var activePoints = [];
-  var initialActivePoints = 5;
-  var pointRadius = 4;
-  var pointsPerFrame = 50;
-
-  function drawLine(startPoint, endPoint) {
-    canvasContext.beginPath();
-    canvasContext.moveTo(Math.round(startPoint[0]), Math.round(startPoint[1]));
-    canvasContext.lineTo(Math.round(endPoint[0]), Math.round(endPoint[1]));
-    canvasContext.stroke();
-  }
-
-  function renderGrid() {
-    var i;
-    for (i = 1; i < gridWidth; i++) {
-      drawLine([cellSize * i, 0], [cellSize * i, gridHeight * cellSize]);
-    }
-    for (i = 1; i < gridHeight; i++) {
-      drawLine([0, cellSize * i], [gridWidth * cellSize, cellSize * i]);
-    }
-  }
+  var allPoints = [];
+  var pointRadius = 10;
 
   function getRandomFloat(min, max) {
-    return min + Math.random() * (max - min);
+    var x = Math.sin(randomSeed++) * 10000;
+    return min + (x - Math.floor(x)) * (max - min);
   }
 
   function getRandomInt(min, max) {
     return getRandomFloat(min, max) | 0;
   }
 
-  var renderPoint = pointRadius > 2
-    ? function (point, color) {
-      canvasContext.fillStyle = color || '#000';
-      canvasContext.beginPath();
-      canvasContext.arc(point[0], point[1], pointRadius, 0, 2 * Math.PI, true);
-      canvasContext.fill();
-    }
-    : function (point, color) {
-      canvasContext.fillStyle = color || '#000';
-      canvasContext.fillRect(
-        point[0] - pointRadius,
-        point[1] - pointRadius,
-        2 * pointRadius,
-        2 * pointRadius
-      )
-    };
+  function renderPoint(point, color) {
+    canvasContext.fillStyle = color || '#000';
+    canvasContext.beginPath();
+    canvasContext.arc(point[0], point[1], pointRadius, 0, 2 * Math.PI, true);
+    canvasContext.fill();
+  }
 
   function getGridAddressForPoint(point) {
     var gridCol = point[0] / cellSize | 0;
@@ -69,14 +43,12 @@
 
   function addPoint(point) {
     var address = getGridAddressForPoint(point);
-
-    renderPoint(point, '#f00');
     activePoints.push(point);
+    allPoints.push(point);
     gridCells[address[0] + address[1] * gridWidth] = point;
   }
 
   function deactivatePoint(point) {
-    renderPoint(point, '#000');
     activePoints.splice(activePoints.indexOf(point), 1);
   }
 
@@ -146,38 +118,28 @@
 
   // ---------------------------------------------------------------------------
 
-  // renderGrid();
-  Array.from({ length: initialActivePoints }, function () {
-    addPoint([getRandomFloat(0, canvasWidth), getRandomFloat(0, canvasHeight)]);
-  });
-
-  function step() {
+  addPoint([canvasWidth / 2, canvasHeight / 2]);
+  while (true) {
     var start = getAnyActivePoint();
-    if (start) {
-      var next = getNextFromPoint(start);
-      if (!next) {
-        deactivatePoint(start);
-        return step();
-      }
+    if (!start) {
+      break;
+    }
+
+    var next = getNextFromPoint(start);
+    if (next) {
       addPoint(next);
-      return true
-    }
-    return false;
-  }
-
-  var done = false;
-  function animate() {
-    if (!done) {
-      requestAnimationFrame(animate);
-      for (var i = 0; i < pointsPerFrame; i++) {
-        if (!step()) {
-          done = true;
-          return;
-        }
-      }
+    } else {
+      deactivatePoint(start);
     }
   }
 
-  animate();
+  console.log(allPoints.length);
+  allPoints.forEach(function (point, i) {
+    if (i < 5) {
+      renderPoint(point, '#00ff00');
+    } else {
+      renderPoint(point, '#eeeeee');
+    }
+  });
 
 }());
