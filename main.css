@@ -1,4 +1,10 @@
 body {
   padding: 0;
   margin: 0;
+  text-align: center;
+}
+
+#forest {
+  border: 1px dashed green;
+  margin: 1rem auto;
 }

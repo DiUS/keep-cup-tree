@@ -278,30 +278,33 @@
       );
     };
 
-    function anim() {
-      window.requestAnimationFrame(anim);
-
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, w, h);
+    function anim(skipRender) {
+      if (skipRender !== true) {
+        window.requestAnimationFrame(anim);
+      }
 
       rotY += opts.rotYVel;
       rotYcos = Math.cos(rotY);
       rotYsin = Math.sin(rotY);
 
-      lines.map(function (line) {
+      lines.forEach(function (line) {
         line.update();
       });
-
-      lines.sort(function (a, b) {
-        return b.closest.transformed.z - a.closest.transformed.z
-      });
-
-      lines.map(function (line) {
-        line.render();
-      });
-
       healthBar.update();
-      healthBar.render();
+
+      if (skipRender !== true) {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, w, h);
+
+        lines
+          // .sort(function (a, b) {
+          //   return b.closest.transformed.z - a.closest.transformed.z
+          // })
+          .forEach(function (line) {
+            line.render();
+          });
+        healthBar.render();
+      }
     }
 
     lines.push(new Line({
@@ -314,6 +317,7 @@
       iteration: 0
     }));
 
+    for (var qqq = 0; qqq < 500; qqq++) anim(true);
     anim();
 
     window.addEventListener('resize', function () {
@@ -330,19 +334,22 @@
     throw new Error('No fetch support');
   }
 
-  fetch('https://74bm6fm1bf.execute-api.ap-southeast-2.amazonaws.com/prod/keepCupTreeLeafCount')
-    .then(function (resp) {
-      return resp.json();
-    })
-    .then(function (json) {
-      if (json.ok) {
-        start(json.result);
-      } else {
-        return Promise.reject(json);
-      }
-    })
-    .catch(function (e) {
-      alert('There was an error loading the count!');
-      console.error(e);
-    });
+  start({ cupsSaved: 31, seed: 1 });
+  // fetch('https://74bm6fm1bf.execute-api.ap-southeast-2.amazonaws.com/prod/keepCupTreeLeafCount')
+  //   .then(function (resp) {
+  //     return resp.json();
+  //   })
+  //   .then(function (json) {
+  //     if (json.ok) {
+  //       start(json.result);
+  //     } else {
+  //       return Promise.reject(json);
+  //     }
+  //   })
+  //   .catch(function (e) {
+  //     // alert('There was an error loading the count!');
+  //     // console.error(e);
+  //
+  //       start({ cupsSaved: 31, seed: 1 });
+  //   });
 }());
