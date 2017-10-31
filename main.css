@@ -5,6 +5,8 @@ body {
 }
 
 #forest {
-  border: 1px dashed green;
+  /*border: 1px dashed green;*/
+  /*box-sizing: border-box;*/
+  background-color: #eee;
   margin: 1rem auto;
 }

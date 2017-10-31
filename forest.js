@@ -6,7 +6,6 @@
   var canvasContext = canvas.getContext('2d');
 
   var radius = 50;
-  var radiusSquared = radius * radius;
 
   var cellSize = radius * Math.SQRT1_2;
   var gridWidth = Math.ceil(canvasWidth / cellSize);
@@ -17,7 +16,16 @@
   var rejectThreshold = 30;
   var activePoints = [];
   var allPoints = [];
-  var pointRadius = 10;
+  var pointRadius = radius / 3;
+
+  function distanceSq(pointA, pointB) {
+    return Math.pow(pointA[0] - pointB[0], 2)
+      + Math.pow(pointA[1] - pointB[1], 2);
+  }
+
+  function isPointsWithinRadius(pointA, pointB, r) {
+    return distanceSq(pointA, pointB) < Math.pow(r, 2);
+  }
 
   function getRandomFloat(min, max) {
     var x = Math.sin(randomSeed++) * 10000;
@@ -28,10 +36,11 @@
     return getRandomFloat(min, max) | 0;
   }
 
-  function renderPoint(point, color) {
+  function renderPoint(point, color, _r) {
+    var r = _r || pointRadius;
     canvasContext.fillStyle = color || '#000';
     canvasContext.beginPath();
-    canvasContext.arc(point[0], point[1], pointRadius, 0, 2 * Math.PI, true);
+    canvasContext.arc(point[0], point[1], r, 0, 2 * Math.PI, true);
     canvasContext.fill();
   }
 
@@ -72,14 +81,15 @@
     return [x, y];
   }
 
-  function getNeighborsOfPoint(point) {
+  function getNeighborsOfPoint(point, _searchRadius) {
+    var searchRadius = _searchRadius || 1;
     var address = getGridAddressForPoint(point);
     var addressCol = address[0];
     var addressRow = address[1];
     var neighbors = [];
 
-    for (var i = Math.max(addressCol - 2, 0); i < Math.min(addressCol + 3, gridWidth); i++) {
-      for (var j = Math.max(addressRow - 2, 0); j < Math.min(addressRow + 3, gridHeight); j++) {
+    for (var i = Math.max(addressCol - searchRadius, 0); i < Math.min(addressCol + searchRadius + 1, gridWidth); i++) {
+      for (var j = Math.max(addressRow - searchRadius, 0); j < Math.min(addressRow + searchRadius + 1, gridHeight); j++) {
         var neighbor = gridCells[i + j * gridWidth];
         if (neighbor) {
           neighbors.push(neighbor);
@@ -91,14 +101,10 @@
   }
 
   function isFar(point) {
-    var neighbors = getNeighborsOfPoint(point);
+    var neighbors = getNeighborsOfPoint(point, 2);
     var nlen = neighbors.length;
     for (var i = 0; i < nlen; i++) {
-      if (
-        Math.pow(point[0] - neighbors[i][0], 2)
-        + Math.pow(point[1] - neighbors[i][1], 2)
-        < radiusSquared
-      ) {
+      if (isPointsWithinRadius(point, neighbors[i], radius)) {
         return false;
       }
     }
@@ -133,12 +139,51 @@
     }
   }
 
-  console.log(allPoints.length);
-  allPoints.forEach(function (point, i) {
-    if (i < 5) {
-      renderPoint(point, '#00ff00');
-    } else {
-      renderPoint(point, '#eeeeee');
+  var state = {
+    nearestPoint: null,
+    completeTreeCount: 200
+  };
+
+  function render() {
+    var greenStart = 16 * 7 + 9;
+    var q = (255 - greenStart) / state.completeTreeCount;
+
+    canvasContext.clearRect(0, 0, canvasWidth, canvasHeight);
+    allPoints.forEach(function (point, i) {
+      if (i <= state.completeTreeCount) {
+        if (point == state.nearestPoint) {
+          renderPoint(point, '#ff0000');
+        } else {
+          renderPoint(point, 'rgb(0, ' + Math.round(greenStart + q * i) + ', 0)');
+        }
+      } else {
+        renderPoint(point, '#eeffee', pointRadius / 2);
+      }
+    });
+  }
+
+  render();
+
+  canvas.addEventListener('mousemove', function (e) {
+    var rect = canvas.getBoundingClientRect();
+    var mousePoint = [
+      (e.pageX - rect.left - document.body.scrollLeft) * 2,
+      (e.pageY - rect.top - document.body.scrollTop) * 2
+    ];
+
+    var nearestPoint = getNeighborsOfPoint(mousePoint)
+      .reduce(function (nearest, value) {
+        if (!nearest ||
+          distanceSq(mousePoint, value) < distanceSq(mousePoint, nearest)
+        ) {
+          return value;
+        }
+        return nearest;
+      }, null);
+
+    if (isPointsWithinRadius(nearestPoint, mousePoint, radius)) {
+      state.nearestPoint = nearestPoint;
+      render();
     }
   });
 
